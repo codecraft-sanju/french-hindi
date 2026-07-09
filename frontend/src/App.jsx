@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, MessageSquare, Globe, Send, User, Settings, MonitorUp, Circle, Wifi, Clock, X, Copy, Loader2 } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, MessageSquare, Globe, Send, User, Settings, MonitorUp, Circle, Wifi, Clock, X, Copy, Loader2, CheckCircle2, ShieldAlert } from 'lucide-react'; // NEW: Added CheckCircle2 and ShieldAlert icons
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import io from 'socket.io-client';
@@ -29,7 +29,15 @@ const uiText = {
     camDenied: "कैमरा/माइक एक्सेस नहीं मिला",
     friendConn: "दोस्त जुड़ गया!",
     friendDisconn: "दोस्त चला गया",
-    screenShareCancel: "स्क्रीन शेयर कैंसिल हुआ"
+    screenShareCancel: "स्क्रीन शेयर कैंसिल हुआ",
+    // NEW: Added translation strings for the new UI elements
+    featuresTitle: "सुविधाएं (Features)",
+    featVideo: "एचडी वीडियो और ऑडियो",
+    featChat: "लाइव चैट अनुवाद",
+    featScreen: "स्क्रीन शेयरिंग",
+    runTest: "सिस्टम चेक करें",
+    testSuccess: "सब कुछ सही काम कर रहा है!",
+    testFail: "सिस्टम चेक फेल हो गया। परमिशन चेक करें।"
   },
   fr: {
     title: "Dealit AI Appel",
@@ -52,7 +60,15 @@ const uiText = {
     camDenied: "Accès caméra/micro refusé",
     friendConn: "Ami connecté!",
     friendDisconn: "Ami déconnecté",
-    screenShareCancel: "Partage d'écran annulé"
+    screenShareCancel: "Partage d'écran annulé",
+    // NEW: Added translation strings for the new UI elements
+    featuresTitle: "Caractéristiques",
+    featVideo: "Vidéo et Audio HD",
+    featChat: "Traduction en direct",
+    featScreen: "Partage d'écran",
+    runTest: "Tester le système",
+    testSuccess: "Tout fonctionne parfaitement!",
+    testFail: "Échec du test. Vérifiez les permissions."
   }
 };
 
@@ -69,6 +85,9 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // NEW: State for the system check button
+  const [isTesting, setIsTesting] = useState(false);
 
   const [roomId, setRoomId] = useState("");
   const [uiLang, setUiLang] = useState("hi");
@@ -128,6 +147,38 @@ export default function App() {
       socket.off('serverError');
     };
   }, [uiLang]);
+
+  // NEW: System Test Function to check backend and media devices
+  const runSystemCheck = async () => {
+    setIsTesting(true);
+    let passed = true;
+
+    try {
+      // 1. Check Backend Connection
+      const res = await fetch(`${BACKEND_URL}/api/health`);
+      if (res.ok) {
+        toast.success("Backend Server: OK", { autoClose: 2000 });
+      } else {
+        throw new Error("Backend not responding");
+      }
+
+      // 2. Check Camera and Mic Permissions
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      if (stream) {
+        toast.success("Camera & Microphone: OK", { autoClose: 2000 });
+        // Stop tracks immediately after testing
+        stream.getTracks().forEach(track => track.stop());
+      }
+      
+      toast.success(t.testSuccess, { autoClose: 4000 });
+    } catch (error) {
+      console.error(error);
+      passed = false;
+      toast.error(t.testFail, { autoClose: 5000 });
+    } finally {
+      setIsTesting(false);
+    }
+  };
 
   const initializeCall = async (room) => {
     setIsLoading(true);
@@ -311,7 +362,9 @@ export default function App() {
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-950 text-white p-6 relative overflow-hidden">
         <ToastContainer theme="dark" position="top-right" />
         <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/20 via-gray-950 to-gray-950 z-0"></div>
-        <div className="w-full max-w-sm p-8 rounded-3xl bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl flex flex-col items-center text-center z-10">
+        
+        {/* NEW: Increased max-w-sm to max-w-md to fit the new feature list nicely */}
+        <div className="w-full max-w-md p-8 rounded-3xl bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl flex flex-col items-center text-center z-10">
           
           <div className="w-full mb-6 text-left">
             <label className="block text-xs text-gray-400 mb-1">{t.uiLangLabel}</label>
@@ -334,6 +387,22 @@ export default function App() {
           <h1 className="text-2xl font-bold mb-1 tracking-tight">{t.title}</h1>
           <p className="text-gray-400 mb-6 text-sm">{t.subtitle}</p>
           
+          {/* NEW: Feature List Box */}
+          <div className="w-full bg-gray-900/60 rounded-xl p-4 mb-6 text-left border border-white/10">
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">{t.featuresTitle}</h3>
+            <ul className="space-y-3">
+              <li className="flex items-center gap-3 text-sm">
+                <Video className="w-4 h-4 text-blue-400" /> {t.featVideo}
+              </li>
+              <li className="flex items-center gap-3 text-sm">
+                <MessageSquare className="w-4 h-4 text-green-400" /> {t.featChat}
+              </li>
+              <li className="flex items-center gap-3 text-sm">
+                <MonitorUp className="w-4 h-4 text-purple-400" /> {t.featScreen}
+              </li>
+            </ul>
+          </div>
+
           <p className="text-xs text-blue-300 bg-blue-900/30 p-3 rounded-lg border border-blue-500/30 mb-6 w-full leading-relaxed">
             {t.onboarding}
           </p>
@@ -353,17 +422,30 @@ export default function App() {
             </button>
           </div>
 
-          <button 
-            onClick={() => {
-              window.history.pushState({}, '', `?room=${roomId}`);
-              setIsCallActive(true);
-              initializeCall(roomId);
-            }}
-            disabled={isLoading}
-            className="w-full py-4 bg-white text-black font-semibold rounded-2xl hover:scale-105 transition-transform duration-300 shadow-[0_0_20px_rgba(255,255,255,0.3)] disabled:opacity-50 disabled:hover:scale-100 flex justify-center items-center gap-2"
-          >
-            {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : t.start}
-          </button>
+          {/* NEW: Grouped Action Buttons */}
+          <div className="w-full flex gap-3">
+            <button 
+              onClick={runSystemCheck}
+              disabled={isTesting}
+              className="flex-1 py-3 bg-gray-800 border border-white/20 text-white text-sm font-semibold rounded-xl hover:bg-gray-700 transition-colors disabled:opacity-50 flex justify-center items-center gap-2"
+            >
+              {isTesting ? <Loader2 className="animate-spin w-4 h-4" /> : <ShieldAlert className="w-4 h-4" />}
+              {t.runTest}
+            </button>
+
+            <button 
+              onClick={() => {
+                window.history.pushState({}, '', `?room=${roomId}`);
+                setIsCallActive(true);
+                initializeCall(roomId);
+              }}
+              disabled={isLoading}
+              className="flex-1 py-3 bg-white text-black text-sm font-semibold rounded-xl hover:scale-105 transition-transform duration-300 shadow-[0_0_20px_rgba(255,255,255,0.3)] disabled:opacity-50 disabled:hover:scale-100 flex justify-center items-center gap-2"
+            >
+              {isLoading ? <Loader2 className="animate-spin w-4 h-4" /> : <Video className="w-4 h-4" />}
+              {t.start}
+            </button>
+          </div>
         </div>
       </div>
     );
