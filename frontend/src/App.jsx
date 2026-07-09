@@ -7,6 +7,55 @@ import io from 'socket.io-client';
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 const socket = io(BACKEND_URL);
 
+const uiText = {
+  hi: {
+    title: "Dealit AI Call",
+    subtitle: "रीयल-टाइम अनुवाद सेटअप",
+    uiLangLabel: "ऐप की भाषा चुनें",
+    onboarding: "यह लिंक अपने दोस्त को भेजें। जब वे जुड़ेंगे, तो वीडियो और ऑटो-ट्रांसलेट चैट शुरू हो जाएगी।",
+    copyLink: "लिंक कॉपी करें",
+    copied: "लिंक कॉपी हो गया!",
+    start: "कॉल शुरू करें",
+    room: "रूम",
+    waiting: "दोस्त का इंतज़ार है...",
+    chatTitle: "लाइव चैट और अनुवाद",
+    apiActive: "अनुवाद चालू है",
+    typeHere: "मैसेज टाइप करें...",
+    settings: "सेटिंग्स",
+    myLang: "मेरी भाषा (बोलने के लिए)",
+    save: "सेव करें",
+    youSaid: "आपने कहा:",
+    friendSaid: "उसने कहा:",
+    camDenied: "कैमरा/माइक एक्सेस नहीं मिला",
+    friendConn: "दोस्त जुड़ गया!",
+    friendDisconn: "दोस्त चला गया",
+    screenShareCancel: "स्क्रीन शेयर कैंसिल हुआ"
+  },
+  fr: {
+    title: "Dealit AI Appel",
+    subtitle: "Configuration de traduction",
+    uiLangLabel: "Langue de l'application",
+    onboarding: "Envoyez ce lien à votre ami. Lorsqu'il rejoindra, la vidéo et le chat traduit automatiquement commenceront.",
+    copyLink: "Copier le lien",
+    copied: "Lien copié!",
+    start: "Commencer l'appel",
+    room: "Salle",
+    waiting: "En attente de l'ami...",
+    chatTitle: "Chat en direct",
+    apiActive: "Traduction active",
+    typeHere: "Tapez un message...",
+    settings: "Paramètres",
+    myLang: "Ma langue (pour parler)",
+    save: "Enregistrer",
+    youSaid: "Vous avez dit:",
+    friendSaid: "A dit:",
+    camDenied: "Accès caméra/micro refusé",
+    friendConn: "Ami connecté!",
+    friendDisconn: "Ami déconnecté",
+    screenShareCancel: "Partage d'écran annulé"
+  }
+};
+
 export default function App() {
   const [isCallActive, setIsCallActive] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -22,12 +71,15 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
 
   const [roomId, setRoomId] = useState("");
+  const [uiLang, setUiLang] = useState("hi");
   const [myLanguage, setMyLanguage] = useState("hi");
   
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
+
+  const t = uiText[uiLang];
 
   const iceServers = {
     iceServers: [
@@ -49,21 +101,21 @@ export default function App() {
     }
 
     socket.on('user-connected', async (userId) => {
-      toast.success("Friend connected!");
+      toast.success(uiText[uiLang].friendConn);
       createOffer(userId);
     });
 
     socket.on('offer', handleReceiveOffer);
     socket.on('answer', handleReceiveAnswer);
     socket.on('ice-candidate', handleNewICECandidateMsg);
-    socket.on('user-disconnected', () => toast.error("Friend disconnected"));
+    socket.on('user-disconnected', () => toast.error(uiText[uiLang].friendDisconn));
 
     socket.on('receiveMessage', (message) => {
       setMessages((prev) => [...prev, message]);
     });
 
     socket.on('serverError', (errorMsg) => {
-      toast.error(`Server Error: ${errorMsg}`);
+      toast.error(`Error: ${errorMsg}`);
     });
 
     return () => {
@@ -75,7 +127,7 @@ export default function App() {
       socket.off('receiveMessage');
       socket.off('serverError');
     };
-  }, []);
+  }, [uiLang]);
 
   const initializeCall = async (room) => {
     setIsLoading(true);
@@ -87,7 +139,7 @@ export default function App() {
       }
       socket.emit('join-room', room);
     } catch (error) {
-      toast.error(`Access denied: ${error.message}`);
+      toast.error(t.camDenied);
       setIsCallActive(false);
     } finally {
       setIsLoading(false);
@@ -126,7 +178,7 @@ export default function App() {
       await peerConnection.setLocalDescription(offer);
       socket.emit('offer', { target, caller: socket.id, sdp: offer });
     } catch (error) {
-      toast.error("Failed to create connection offer");
+      console.error(error);
     }
   };
 
@@ -138,7 +190,7 @@ export default function App() {
       await peerConnection.setLocalDescription(answer);
       socket.emit('answer', { target: incoming.caller, sdp: answer });
     } catch (error) {
-      toast.error("Failed to handle connection offer");
+      console.error(error);
     }
   };
 
@@ -148,7 +200,7 @@ export default function App() {
         await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(incoming.sdp));
       }
     } catch (error) {
-      toast.error("Failed to set connection answer");
+      console.error(error);
     }
   };
 
@@ -158,7 +210,7 @@ export default function App() {
         await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
       }
     } catch (error) {
-      toast.error("Failed to add network candidate");
+      console.error(error);
     }
   };
 
@@ -222,7 +274,7 @@ export default function App() {
         };
         setIsScreenSharing(true);
       } catch (err) {
-        toast.error("Screen sharing cancelled");
+        toast.error(t.screenShareCancel);
       }
     } else {
       stopScreenShare();
@@ -260,12 +312,32 @@ export default function App() {
         <ToastContainer theme="dark" position="top-right" />
         <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900/20 via-gray-950 to-gray-950 z-0"></div>
         <div className="w-full max-w-sm p-8 rounded-3xl bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl flex flex-col items-center text-center z-10">
-          <div className="w-24 h-24 bg-gradient-to-tr from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(59,130,246,0.5)]">
+          
+          <div className="w-full mb-6 text-left">
+            <label className="block text-xs text-gray-400 mb-1">{t.uiLangLabel}</label>
+            <select 
+              value={uiLang}
+              onChange={(e) => {
+                setUiLang(e.target.value);
+                setMyLanguage(e.target.value);
+              }}
+              className="w-full bg-black/50 border border-white/20 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+            >
+              <option value="hi">हिन्दी (Hindi)</option>
+              <option value="fr">Français (French)</option>
+            </select>
+          </div>
+
+          <div className="w-24 h-24 bg-gradient-to-tr from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4 shadow-[0_0_30px_rgba(59,130,246,0.5)]">
             <Globe className="w-12 h-12 text-white" />
           </div>
-          <h1 className="text-2xl font-bold mb-2 tracking-tight">Dealit AI Call</h1>
-          <p className="text-gray-400 mb-8 text-sm">Real-time Translation Setup</p>
+          <h1 className="text-2xl font-bold mb-1 tracking-tight">{t.title}</h1>
+          <p className="text-gray-400 mb-6 text-sm">{t.subtitle}</p>
           
+          <p className="text-xs text-blue-300 bg-blue-900/30 p-3 rounded-lg border border-blue-500/30 mb-6 w-full leading-relaxed">
+            {t.onboarding}
+          </p>
+
           <div className="w-full mb-6 bg-gray-900/50 p-4 rounded-xl border border-white/10 flex items-center justify-between">
             <span className="text-xs text-gray-400 truncate mr-2">
               {window.location.origin}/?room={roomId}
@@ -273,9 +345,9 @@ export default function App() {
             <button 
               onClick={() => {
                 navigator.clipboard.writeText(`${window.location.origin}/?room=${roomId}`);
-                toast.success("Link Copied!");
+                toast.success(t.copied);
               }}
-              className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+              className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors flex-shrink-0"
             >
               <Copy size={16} />
             </button>
@@ -290,7 +362,7 @@ export default function App() {
             disabled={isLoading}
             className="w-full py-4 bg-white text-black font-semibold rounded-2xl hover:scale-105 transition-transform duration-300 shadow-[0_0_20px_rgba(255,255,255,0.3)] disabled:opacity-50 disabled:hover:scale-100 flex justify-center items-center gap-2"
           >
-            {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : "Start Session"}
+            {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : t.start}
           </button>
         </div>
       </div>
@@ -299,21 +371,20 @@ export default function App() {
 
   // 2. Active Call & Chat Screen (Mobile First Design)
   return (
-    <div className="relative min-h-screen bg-gray-950 text-white overflow-hidden flex flex-col md:flex-row">
+    <div className="relative h-[100dvh] bg-gray-950 text-white overflow-hidden flex flex-col md:flex-row">
       <ToastContainer theme="dark" position="top-right" />
       
       {/* --- VIDEO SECTION --- */}
-      <div className="relative flex-1 bg-gray-900 w-full h-[50vh] md:h-screen">
+      <div className="relative flex-1 bg-gray-900 w-full h-full">
         
         <div className="absolute top-4 left-4 z-20 flex items-center gap-3">
           <div className="flex items-center gap-2 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-xs">
             <Wifi className="w-4 h-4 text-green-400" />
-            <span>Room: {roomId}</span>
+            <span>{t.room}: {roomId}</span>
           </div>
           {isRecording && (
             <div className="flex items-center gap-2 bg-red-500/20 backdrop-blur-md px-3 py-1.5 rounded-full border border-red-500/30 text-xs text-red-400 animate-pulse">
               <Circle className="w-3 h-3 fill-current" />
-              <span>Recording</span>
             </div>
           )}
         </div>
@@ -329,8 +400,8 @@ export default function App() {
           {!remoteVideoRef.current?.srcObject && (
             <div className="absolute flex flex-col items-center gap-4">
               <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-              <p className="text-gray-400 font-medium animate-pulse flex items-center gap-2">
-                Waiting for Friend...
+              <p className="text-gray-400 font-medium animate-pulse flex items-center gap-2 text-center px-4">
+                {t.waiting}
               </p>
             </div>
           )}
@@ -364,68 +435,65 @@ export default function App() {
       </div>
 
       {/* --- LIVE TRANSLATION CHAT SECTION --- */}
-      {showChat && (
-        <div className="flex-1 w-full h-[50vh] md:h-screen bg-gray-950 flex flex-col border-t md:border-t-0 md:border-l border-white/10 z-20">
-          
-          {/* Chat Header */}
-          <div className="p-4 bg-white/5 backdrop-blur-md border-b border-white/10 flex justify-between items-center">
-            <div>
-              <h2 className="text-sm font-semibold">Live Captions & Chat</h2>
-              <p className="text-xs text-green-400 flex items-center gap-1 mt-0.5">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-ping"></span>
-                API Translation Active
-              </p>
-            </div>
-            <button 
-              onClick={() => setShowChat(false)}
-              className="md:hidden p-2 bg-white/10 rounded-full hover:bg-white/20"
-            >
-              <X size={16} />
-            </button>
+      <div className={`fixed inset-0 top-auto h-[65dvh] md:h-screen md:relative md:w-96 bg-gray-950 flex flex-col border-t md:border-t-0 md:border-l border-white/10 z-40 md:z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] md:shadow-none transition-transform duration-300 ${showChat ? 'translate-y-0' : 'translate-y-full md:translate-y-0 md:hidden'}`}>
+        
+        {/* Chat Header */}
+        <div className="p-4 bg-white/5 backdrop-blur-md border-b border-white/10 flex justify-between items-center">
+          <div>
+            <h2 className="text-sm font-semibold">{t.chatTitle}</h2>
+            <p className="text-xs text-green-400 flex items-center gap-1 mt-0.5">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-ping"></span>
+              {t.apiActive}
+            </p>
           </div>
-
-          {/* Chat Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-white/10">
-            {messages.map((msg) => (
-              <div key={msg.id} className={`flex flex-col ${msg.sender === socket.id ? 'items-end' : 'items-start'}`}>
-                <div className={`max-w-[85%] rounded-2xl p-3 ${
-                  msg.sender === socket.id 
-                    ? 'bg-gradient-to-br from-blue-600 to-blue-800 rounded-br-none' 
-                    : 'bg-white/10 backdrop-blur-md border border-white/10 rounded-bl-none'
-                }`}>
-                  <p className="text-sm font-medium mb-1">{msg.translated}</p>
-                  <p className="text-[11px] opacity-70 italic border-t border-white/10 pt-1 mt-1 flex justify-between items-center gap-4">
-                    <span>{msg.sender === socket.id ? 'You said: ' : 'She said: '} {msg.original}</span>
-                    <span className="flex items-center gap-1 text-[9px] opacity-60"><Clock className="w-3 h-3" /> {msg.time}</span>
-                  </p>
-                </div>
-              </div>
-            ))}
-            <div ref={chatEndRef} />
-          </div>
-
-          {/* Chat Input */}
-          <form onSubmit={handleSendMessage} className="p-3 bg-white/5 backdrop-blur-md border-t border-white/10 flex gap-2">
-            <input 
-              type="text" 
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder="Type message to translate..." 
-              className="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-white placeholder-gray-400 transition-colors"
-            />
-            <button type="submit" className="p-3 bg-blue-600 hover:bg-blue-500 rounded-xl transition-colors flex items-center justify-center">
-              <Send className="w-5 h-5 text-white" />
-            </button>
-          </form>
+          <button 
+            onClick={() => setShowChat(false)}
+            className="md:hidden p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors"
+          >
+            <X size={18} />
+          </button>
         </div>
-      )}
+
+        {/* Chat Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-white/10">
+          {messages.map((msg) => (
+            <div key={msg.id} className={`flex flex-col ${msg.sender === socket.id ? 'items-end' : 'items-start'}`}>
+              <div className={`max-w-[85%] rounded-2xl p-3 ${
+                msg.sender === socket.id 
+                  ? 'bg-gradient-to-br from-blue-600 to-blue-800 rounded-br-none' 
+                  : 'bg-white/10 backdrop-blur-md border border-white/10 rounded-bl-none'
+              }`}>
+                <p className="text-sm font-medium mb-1">{msg.translated}</p>
+                <p className="text-[11px] opacity-70 italic border-t border-white/10 pt-1 mt-1 flex justify-between items-center gap-4">
+                  <span>{msg.sender === socket.id ? t.youSaid : t.friendSaid} {msg.original}</span>
+                  <span className="flex items-center gap-1 text-[9px] opacity-60 flex-shrink-0"><Clock className="w-3 h-3" /> {msg.time}</span>
+                </p>
+              </div>
+            </div>
+          ))}
+          <div ref={chatEndRef} />
+        </div>
+
+        {/* Chat Input */}
+        <form onSubmit={handleSendMessage} className="p-3 bg-white/5 backdrop-blur-md border-t border-white/10 flex gap-2 pb-safe">
+          <input 
+            type="text" 
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            placeholder={t.typeHere}
+            className="flex-1 bg-white/5 border border-white/20 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 text-white placeholder-gray-400 transition-colors"
+          />
+          <button type="submit" className="p-3 bg-blue-600 hover:bg-blue-500 rounded-xl transition-colors flex items-center justify-center">
+            <Send className="w-5 h-5 text-white" />
+          </button>
+        </form>
+      </div>
 
       {/* --- CALL CONTROLS (Floating Bottom Bar) --- */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 p-3 bg-gray-900/90 backdrop-blur-xl border border-white/20 rounded-full shadow-2xl z-30">
+      <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 p-3 bg-gray-900/90 backdrop-blur-xl border border-white/20 rounded-full shadow-2xl z-30 transition-opacity duration-300 ${showChat ? 'opacity-0 pointer-events-none md:opacity-100 md:pointer-events-auto' : 'opacity-100'}`}>
         <button 
           onClick={toggleMic}
           className={`p-3 md:p-4 rounded-full transition-all ${isMuted ? 'bg-red-500/20 text-red-500' : 'bg-white/10 hover:bg-white/20 text-white'}`}
-          title="Toggle Microphone"
         >
           {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
         </button>
@@ -433,7 +501,6 @@ export default function App() {
         <button 
           onClick={toggleVideo}
           className={`p-3 md:p-4 rounded-full transition-all ${isVideoOff ? 'bg-red-500/20 text-red-500' : 'bg-white/10 hover:bg-white/20 text-white'}`}
-          title="Toggle Camera"
         >
           {isVideoOff ? <VideoOff size={20} /> : <Video size={20} />}
         </button>
@@ -443,15 +510,13 @@ export default function App() {
         <button 
           onClick={handleScreenShare}
           className={`hidden md:block p-3 md:p-4 rounded-full transition-all ${isScreenSharing ? 'bg-blue-500/20 text-blue-400' : 'bg-white/10 hover:bg-white/20 text-white'}`}
-          title="Share Screen"
         >
           <MonitorUp size={20} />
         </button>
         
         <button 
-          onClick={() => setShowChat(!showChat)}
-          className={`md:hidden p-3 md:p-4 rounded-full transition-all ${showChat ? 'bg-blue-500/20 text-blue-400' : 'bg-white/10 hover:bg-white/20 text-white'}`}
-          title="Toggle Chat"
+          onClick={() => setShowChat(true)}
+          className={`md:hidden p-3 rounded-full transition-all bg-white/10 hover:bg-white/20 text-white`}
         >
           <MessageSquare size={20} />
         </button>
@@ -459,7 +524,6 @@ export default function App() {
         <button 
           onClick={() => setShowSettings(true)}
           className="p-3 md:p-4 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all"
-          title="Settings"
         >
           <Settings size={20} />
         </button>
@@ -469,7 +533,6 @@ export default function App() {
         <button 
           onClick={endCall}
           className="p-3 md:p-4 rounded-full bg-red-600 hover:bg-red-500 text-white transition-all shadow-[0_0_15px_rgba(220,38,38,0.5)]"
-          title="End Call"
         >
           <PhoneOff size={20} />
         </button>
@@ -479,7 +542,7 @@ export default function App() {
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-white/20 rounded-2xl w-full max-w-md p-6 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-bold">Translation Settings</h3>
+              <h3 className="text-lg font-bold">{t.settings}</h3>
               <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-white">
                 <X size={20} />
               </button>
@@ -487,14 +550,14 @@ export default function App() {
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-2">My Language</label>
+                <label className="block text-sm text-gray-400 mb-2">{t.myLang}</label>
                 <select 
                   value={myLanguage}
                   onChange={(e) => setMyLanguage(e.target.value)}
                   className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
                 >
-                  <option value="hi">Hindi (India)</option>
-                  <option value="fr">French (Madagascar/France)</option>
+                  <option value="hi">हिन्दी (Hindi)</option>
+                  <option value="fr">Français (French)</option>
                 </select>
               </div>
 
@@ -503,7 +566,7 @@ export default function App() {
                   onClick={() => setShowSettings(false)}
                   className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition-colors"
                 >
-                  Save Changes
+                  {t.save}
                 </button>
               </div>
             </div>
