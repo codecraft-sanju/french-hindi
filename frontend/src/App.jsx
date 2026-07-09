@@ -85,6 +85,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [remoteStreamActive, setRemoteStreamActive] = useState(false);
   
   // NEW: State for the system check button
   const [isTesting, setIsTesting] = useState(false);
@@ -97,15 +98,56 @@ export default function App() {
   const remoteVideoRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
+  const recognitionRef = useRef(null);
 
   const t = uiText[uiLang];
 
   const iceServers = {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' }
+      { urls: 'stun:stun1.l.google.com:19302' },
+      {
+        urls: 'turn:your.turn.server.here:3478',
+        username: 'your_turn_username',
+        credential: 'your_turn_password'
+      }
     ]
   };
+
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = true;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = myLanguage === 'hi' ? 'hi-IN' : 'fr-FR';
+
+      recognitionRef.current.onresult = (event) => {
+        const current = event.resultIndex;
+        const transcript = event.results[current][0].transcript;
+        if (transcript.trim()) {
+          const messageData = {
+            roomId,
+            original: transcript,
+            sourceLang: myLanguage
+          };
+          socket.emit('sendMessage', messageData);
+        }
+      };
+    }
+  }, [myLanguage, roomId]);
+
+  useEffect(() => {
+    if (isCallActive && !isMuted && recognitionRef.current) {
+      try {
+        recognitionRef.current.start();
+      } catch (error) {
+        console.error(error);
+      }
+    } else if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+  }, [isCallActive, isMuted]);
 
   // Dummy conversation flow to show how auto-translation works
   useEffect(() => {
@@ -127,7 +169,17 @@ export default function App() {
     socket.on('offer', handleReceiveOffer);
     socket.on('answer', handleReceiveAnswer);
     socket.on('ice-candidate', handleNewICECandidateMsg);
-    socket.on('user-disconnected', () => toast.error(uiText[uiLang].friendDisconn));
+    socket.on('user-disconnected', () => {
+      toast.error(uiText[uiLang].friendDisconn);
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
+      }
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = null;
+      }
+      setRemoteStreamActive(false);
+    });
 
     socket.on('receiveMessage', (message) => {
       setMessages((prev) => [...prev, message]);
@@ -166,7 +218,6 @@ export default function App() {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       if (stream) {
         toast.success("Camera & Microphone: OK", { autoClose: 2000 });
-        // Stop tracks immediately after testing
         stream.getTracks().forEach(track => track.stop());
       }
       
@@ -210,6 +261,7 @@ export default function App() {
     peerConnection.ontrack = (event) => {
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = event.streams[0];
+        setRemoteStreamActive(true);
       }
     };
 
@@ -265,7 +317,6 @@ export default function App() {
     }
   };
 
-  // Auto-scroll chat to bottom
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, showChat]);
@@ -479,12 +530,19 @@ export default function App() {
             playsInline 
             className="w-full h-full object-cover"
           />
-          {!remoteVideoRef.current?.srcObject && (
+          {!remoteStreamActive && (
             <div className="absolute flex flex-col items-center gap-4">
               <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
               <p className="text-gray-400 font-medium animate-pulse flex items-center gap-2 text-center px-4">
                 {t.waiting}
               </p>
+            </div>
+          )}
+          {messages.length > 0 && remoteStreamActive && (
+            <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-4/5 text-center z-20">
+               <span className="bg-black/70 text-white px-4 py-2 rounded-lg text-lg font-medium drop-shadow-md">
+                 {messages[messages.length - 1].translated}
+               </span>
             </div>
           )}
         </div>
