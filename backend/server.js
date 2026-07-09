@@ -59,7 +59,7 @@ io.on('connection', (socket) => {
       if (!data.original) throw new Error("Message text is empty");
 
       const langPair = data.sourceLang === 'hi' ? 'hi|fr' : 'fr|hi';
-      const response = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(data.original)}&langpair=${langPair}`);
+      const response = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(data.original)}&langpair=${langPair}&de=sanjaychoudhury693@gmail.com`);
       
       if (!response.ok) {
         const errorDetails = await response.text();
