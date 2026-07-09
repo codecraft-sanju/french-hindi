@@ -61,9 +61,19 @@ io.on('connection', (socket) => {
       const langPair = data.sourceLang === 'hi' ? 'hi|fr' : 'fr|hi';
       const response = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(data.original)}&langpair=${langPair}`);
       
-      if (!response.ok) throw new Error("Translation API failed");
+      if (!response.ok) {
+        const errorDetails = await response.text();
+        console.log('HTTP Error:', response.status, errorDetails);
+        throw new Error("Translation API failed at network level");
+      }
       
       const translationData = await response.json();
+      
+      if (translationData.responseStatus !== 200) {
+        console.log('MyMemory Error:', translationData.responseDetails);
+        throw new Error(translationData.responseDetails);
+      }
+
       const translatedText = translationData.responseData.translatedText;
       const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
